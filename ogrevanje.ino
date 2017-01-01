@@ -66,7 +66,7 @@ static byte dnsip[] = {172,22,0,240};  //dns
 
 // POZOR NASTAVITVE ZA TEST
 //static byte mymac[] = { 0x74, 0x69, 0x69, 0x2D, 0x30, 0x87 };
-//static byte myip[] = { 172, 22, 0, 179 };
+//static byte myip[] = { 172, 22, 0, 190 };
 //static byte gwip[] = { 172, 22, 0, 250 }; // gateway address
 //static byte netmask[] = {255, 255, 255, 0 }; //subnet mask
 //static byte dnsip[] = {172, 22, 0, 240}; //dns
@@ -85,8 +85,8 @@ float DimTuljavaTemp = 0;
 // moj timer namesto Delay
 unsigned long previousMillis = 0;
 unsigned long SolarPreviousTime = 0;
-unsigned long VrataPreviousTime = 0;
-unsigned long VrataTimerPreviousTime = 0;
+//unsigned long VrataPreviousTime = 0;
+//unsigned long VrataTimerPreviousTime = 0;
 unsigned long LEDPreviousTime = 0;
 int LEDBlinkSpeed = 300;
 // Data wire is plugged into pin 9 on the Arduino #define ONE_WIRE_BUS 9
@@ -117,12 +117,12 @@ int BojlerMinTemp = 42;       //Min temp bojlerja
 int DnevnaMinTemp = 19;       //Min temp v dnevni
 int DimTuljavaPoint = 60;     //Meja kdaj se Pec ohlaja/ogreva
 int SolarMaxTemp = 80;
+int Histereza = 2;            // Histereza
+int DefaultsLoaded = 0;        // automatsko naloži defaults ce niso bile se nikdar 
 
 boolean AutoControl = true;    //false=Manual, true=Auto
 boolean SolarLock = true;
-
 boolean SolarSistemWorking;
-
 boolean RelayOgrevanje0 = false;
 boolean RelayBojler1 = false;
 boolean RelaySolar2 = false;
@@ -141,6 +141,8 @@ int EADD_BojlerMinTemp = 6;
 int EADD_DnevnaMinTemp = 7;
 int EADD_DimTuljavaPoint = 8;
 int EADD_SolarMaxTemp = 9;
+int EADD_Histereza = 10;
+int EADD_DefaultsLoaded = 11;
 //int EADD_VrataTimeToWaitBeforeClose = 12;
 // --------- ERROR CODES --------
 byte ErrorCodes = 0;
@@ -312,6 +314,10 @@ const char u9m[] PROGMEM = "?u9m";
 const char u9p[] PROGMEM = "?u9p";
 const char u9i[] PROGMEM = "SOLAR MAX:";
 
+const char hm[] PROGMEM = "?hm";
+const char hp[] PROGMEM = "?hp";
+const char hi[] PROGMEM = "HISTEREZA:";
+
 const char cdays[] PROGMEM = "d";
 const char chours[] PROGMEM = "h";
 const char cmins[] PROGMEM = "m";
@@ -324,7 +330,7 @@ void setup () {
   wdt_disable();
   //Serial.println(F("wdt disabled!"));
   delay(2L * 1000L);
-  Serial.println(F("Starting setup ..."));
+  Serial.println(F("Starting..."));
   pinMode(ledPin, OUTPUT);
   //Serial.print((freeRam()));
   //Serial.println(F(" Free RAM (Starting setup ...) "));
@@ -356,6 +362,12 @@ void setup () {
   DnevnaMinTemp = EEPROM.read(EADD_DnevnaMinTemp);
   DimTuljavaPoint = EEPROM.read(EADD_DimTuljavaPoint);
   SolarMaxTemp = EEPROM.read(EADD_SolarMaxTemp);
+  Histereza = EEPROM.read(EADD_Histereza);
+  DefaultsLoaded = EEPROM.read(DefaultsLoaded);
+  if (!DefaultsLoaded == 16) {
+    LoadDefaults();
+    Serial.println(F("Dfl loaded!"));
+  }
   // ob zagonu ugasnem vse releje
   Wire.begin();
   PCF8574CurrentState = 255;
@@ -365,7 +377,7 @@ void setup () {
   byte error;
   error = Wire.endTransmission();
   if (error != 0) {
-    Serial.print(F("I2C error: "));
+    Serial.print(F("I2Cerr:"));
     Serial.println(error);
   }
   freeRam();
@@ -377,9 +389,9 @@ void loop () {
   //if (millis() - previousMillis > 5000) {
   if (millis() - previousMillis > 5000) {
     previousMillis = millis();
-    Serial.println("");
-    Serial.print(millis()/1000);
-    Serial.println(F("sec uptime"));
+    //Serial.println("");
+    //Serial.print(millis()/1000);
+    //Serial.println(F("sec uptime"));
     GetTermocoupleTemp();
     GetDHTSensorData();
     sensors.requestTemperatures();
@@ -416,29 +428,29 @@ void loop () {
 
     //Serial.println(F("======================================"));
     ether.printIp("IP:\t", ether.myip);
-    ether.printIp("MASK:\t", ether.netmask);
-    ether.printIp("GW:\t", ether.gwip);
-    ether.printIp("DNS:\t", ether.dnsip);
+    //ether.printIp("MASK:\t", ether.netmask);
+    //ether.printIp("GW:\t", ether.gwip);
+    //ether.printIp("DNS:\t", ether.dnsip);
     if (ether.myip[3] == 0) {
       // ce mrezna nima IP naslova (0.0.0.0) potem ponovno init
       InitNetwork();
     }
-    //Serial.print(F("PecTemp: "));
-    //Serial.println(PecTemp);
-    //Serial.print(F("DimTuljavaTemp: "));
-    //Serial.println(DimTuljavaTemp);
-    //Serial.print(F("DnevnaTemp: "));WebNastavitveLock
-    //Serial.println(DHTData.DnevnaTemp);
-    //Serial.print(F("ZunajTemp: "));
-    //Serial.println(DHTData.ZunajTemp);
-    //Serial.print(F("KurilnicaTemp: "));
-    //Serial.println(DHTData.KurilnicaTemp);
-    //Serial.print(F("SolarZgorajTemp: "));
-    //Serial.println(SolarZgorajTemp);
-    //Serial.print(F("SolarSpodajTemp: "));
-    //Serial.println(SolarSpodajTemp);
-    //Serial.print(F("BojlerTemp: "));
-    //Serial.println(BojlerTemp);
+    Serial.print(F("PecTemp: "));
+    Serial.println(PecTemp);
+    Serial.print(F("Tuljava: "));
+    Serial.println(DimTuljavaTemp);
+    Serial.print(F("Dnevna: "));
+    Serial.println(DHTData.DnevnaTemp);
+//    Serial.print(F("ZunajTemp: "));
+//    Serial.println(DHTData.ZunajTemp);
+//    Serial.print(F("KurilnicaTemp: "));
+//    Serial.println(DHTData.KurilnicaTemp);
+    Serial.print(F("SZgoraj: "));
+    Serial.println(SolarZgorajTemp);
+    Serial.print(F("SSpodaj: "));
+    Serial.println(SolarSpodajTemp);
+    Serial.print(F("Bojler: "));
+    Serial.println(BojlerTemp);
     //Serial.print(F("BojlerDiffForHeating: "));
     //Serial.println(BojlerDiffForHeating);
     //Serial.print(F("MinFreeRAM: "));
@@ -448,7 +460,7 @@ void loop () {
     // false=Manual, true=Auto
     if (AutoControl) {
       //START ko so plini > 70
-      if ((( (int)PecTemp >= PecStartTemp) && ( (int)DimTuljavaTemp >= DimTuljavaPoint )) || (( (int)PecTemp > PecStopTemp ) && ( (int)DimTuljavaTemp < DimTuljavaPoint ))) {
+      if ((( (int)PecTemp >= PecStartTemp + Histereza) && ( (int)DimTuljavaTemp >= DimTuljavaPoint )) || (( (int)PecTemp > PecStopTemp + Histereza ) && ( (int)DimTuljavaTemp < DimTuljavaPoint ))) {
         if ((BojlerMinTemp > (int)BojlerTemp) && ((int)BojlerTemp + BojlerDiffForHeating <= (int)PecTemp)) {
           RelayBojler1 = true;
           RelayEmergency3 = false;
@@ -498,7 +510,8 @@ void loop () {
           ////Serial.println(F(" Free RAM (Bojler/Dnevna over MIN) "));
         }
       }
-      else {
+      //else {
+      if  ((( (int)PecTemp <= PecStartTemp - Histereza) && ( (int)DimTuljavaTemp >= DimTuljavaPoint )) || (( (int)PecTemp < PecStopTemp - Histereza ) && ( (int)DimTuljavaTemp < DimTuljavaPoint ))) {
         //if ((int)PecTemp < PecStopTemp) { // izklopim ce je PecTemp < PecStopTemp
           //PCF8574_Write_Pin(32,0,1); // Pec se ni ogreta izklop crpalke ogrevanja
           //PCF8574_Write_Pin(32,1,1); // Pec se ni ogreta izklop crpalke bojlerja
@@ -590,6 +603,21 @@ void loop () {
   WebServer();
   BlinkLED();
 }
+
+void LoadDefaults() {
+  BojlerDiffForHeating = 5; //Razlika kdaj ogrevamo Bojler
+  PecStartTemp = 57;        //Temp ko pec lahko ogreva ostalo
+  PecStopTemp = 38;         //ugasnemo ogrevanje
+  PecMaxTemp = 85;          //Pec Max temp
+  BojlerMaxTemp = 51;       //Bojler Max temp
+  BojlerMinTemp = 45;       //Min temp bojlerja
+  DnevnaMinTemp = 20;       //Min temp v dnevni
+  DimTuljavaPoint = 70;     //Meja kdaj se Pec ohlaja/ogreva
+  SolarMaxTemp = 80;
+  Histereza = 2;
+  DefaultsLoaded = 16;
+}
+
 void BlinkLED() {
   if (millis() - LEDPreviousTime >= LEDBlinkSpeed) {
     LEDPreviousTime = millis();
@@ -649,21 +677,23 @@ void InitNetwork() {
   /* Check that the Ethernet controller exists */
   //Serial.println("Initialising the Ethernet controller");
   if (ether.begin(sizeof Ethernet::buffer, mymac, 8) == 0) {
-      //Serial.println( "Ethernet controller NOT initialised");
-      while (true)
+      Serial.println( "Eth failed");
+      //while (true)
           /* MT */ ;
   }
-
+  // inicializacija mrezne
+  //ether.begin(sizeof Ethernet::buffer, mymac, 8);
   /* Get a DHCP connection */
-  Serial.println("Attempting to get an IP address using DHCP");
+  Serial.println("Trying DHCP(timeout 1min)!");
+  // Če mrežna ni priključena oz ne dela, tukaj caka 1min in potem gre naprej brez mrezne!!!
   //fixed = false;
   if (ether.dhcpSetup()) {
-      ether.printIp("Got an IP address using DHCP: ", ether.myip);
+      ether.printIp("DHCP: ", ether.myip);
   }
   /* If DHCP fails, start with a hard-coded address */
   else {
       ether.staticSetup(myip, gwip, dnsip);
-      ether.printIp("DHCP FAILED, using fixed address: ", ether.myip);
+      ether.printIp("Using static IP: ", ether.myip);
       //fixed = true;
   }
 }
@@ -709,7 +739,7 @@ void PCF8574_Write_Pin(int address, uint8_t pin, uint8_t value) {
   error = Wire.endTransmission();
   if (error != 0) {
     bitSet(ErrorCodes, 4);
-    Serial.print(F("I2C error: "));
+    Serial.print(F("I2Cerr: "));
     Serial.println(error);
   }
   freeRam();
@@ -742,7 +772,7 @@ void GetTermocoupleTemp() {
   //Serial.println(F(" Free RAM (GetTermocoupleTemp) "));
   if (tc1_senzor1.readC() < 0.0) {
     //MAX6675 gre od 0 in naprej, ce je senzor NC vrne neg. cifro
-    Serial.println(F("Error: K-type"));
+    Serial.println(F("Err: K-type"));
     bitSet(ErrorCodes, 3);
     //LastError = "Napaka pri branju termoclena K-type preko MAX6675 na SPI!";
     //ErrorCode = 200;
@@ -812,17 +842,17 @@ void GetDHTSensorData() {
 
   // Check if any reads failed and exit early (to try again).
   if (isnan(DHTData.DnevnaHum) || isnan(DHTData.DnevnaTemp)) {
-    Serial.println(F("Error: AM2302 Dnevna!"));
+    Serial.println(F("Err:DHT Dvna!"));
     bitSet(ErrorCodes, 0);
     //ErrorCode = 100;
   }
   if (isnan(DHTData.ZunajHum) || isnan(DHTData.ZunajTemp)) {
-    Serial.println(F("Error: AM2302 Zunaj!"));
+    Serial.println(F("Err:DHT Znj!"));
     bitSet(ErrorCodes, 1);
     //ErrorCode = 100;
   }
   if (isnan(DHTData.KurilnicaHum) || isnan(DHTData.KurilnicaTemp)) {
-    Serial.println(F("Error: AM2302 Kurilnica!"));
+    Serial.println(F("Err:DHT Kla!"));
     bitSet(ErrorCodes, 2);
     //ErrorCode = 100;
   }
@@ -998,7 +1028,22 @@ static void WebServer() {
       }
       RedirectToNastavitve();
     }
-
+    // +- Histereza
+    else if (strstr((char *)Ethernet::buffer + pos, "?hp") != 0) {
+      if (WebNastavitveLock) {
+        Histereza = Histereza + 1;
+        WebNastavitveLock = false;
+      }
+      RedirectToNastavitve();
+    }
+    // +- Histereza
+    else if (strstr((char *)Ethernet::buffer + pos, "?hm") != 0) {
+      if (WebNastavitveLock) {
+        Histereza = Histereza - 1;
+        WebNastavitveLock = false;
+      }
+      RedirectToNastavitve();
+    }
     // SHRANI
     else if (strstr((char *)Ethernet::buffer + pos, shrani) != 0) {
       if (WebNastavitveLock) {
@@ -1012,6 +1057,8 @@ static void WebServer() {
         EEPROM.write(EADD_DnevnaMinTemp, DnevnaMinTemp);
         EEPROM.write(EADD_DimTuljavaPoint, DimTuljavaPoint);
         EEPROM.write(EADD_SolarMaxTemp, SolarMaxTemp);
+        EEPROM.write(EADD_Histereza, Histereza);
+        EEPROM.write(EADD_DefaultsLoaded, DefaultsLoaded);
         WebNastavitveLock = false;
       }
       RedirectToNastavitve();
@@ -1019,15 +1066,7 @@ static void WebServer() {
     // DEFAULT 
     else if (strstr((char *)Ethernet::buffer + pos, load_default) != 0) {
       if (WebNastavitveLock) {
-        BojlerDiffForHeating = 5; //Razlika kdaj ogrevamo Bojler
-        PecStartTemp = 60;        //Temp ko pec lahko ogreva ostalo
-        PecStopTemp = 40;         //ugasnemo ogrevanje
-        PecMaxTemp = 95;          //Pec Max temp
-        BojlerMaxTemp = 50;       //Bojler Max temp
-        BojlerMinTemp = 42;       //Min temp bojlerja
-        DnevnaMinTemp = 19;       //Min temp v dnevni
-        DimTuljavaPoint = 60;     //Meja kdaj se Pec ohlaja/ogreva
-        SolarMaxTemp = 80;
+        LoadDefaults();
         WebNastavitveLock = false;
       }
       RedirectToNastavitve();
@@ -1118,8 +1157,8 @@ static void WebServer() {
     }
   }
   freeRam();
-}
-
+}  
+  
 static void SendData() {
   BufferFiller bfill = ether.tcpOffset();
   bfill.emit_p(PSTR(
@@ -1436,6 +1475,7 @@ static void Nastavitve() {
   Nastavitve_Tabela_Vrstica(u7i,sizeof u7i,u7p,sizeof u7p,u7m,sizeof u7m,DnevnaMinTemp, deg, sizeof deg);
   Nastavitve_Tabela_Vrstica(u8i,sizeof u8i,u8p,sizeof u8p,u8m,sizeof u8m,DimTuljavaPoint, deg, sizeof deg);
   Nastavitve_Tabela_Vrstica(u9i,sizeof u9i,u9p,sizeof u9p,u9m,sizeof u9m,SolarMaxTemp, deg, sizeof deg);
+  Nastavitve_Tabela_Vrstica(hi,sizeof hi,hp,sizeof hp,hm,sizeof hm,Histereza, deg, sizeof deg);
   Send_Part_PROGMEM_SEQ(tableend, sizeof tableend);
   Send_Part_PROGMEM_SEQ(ButtonHeaderSets, sizeof ButtonHeaderSets);
   Send_Part_PROGMEM_SEQ(pageSHRANI, sizeof pageSHRANI);

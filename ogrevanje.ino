@@ -458,14 +458,15 @@ void loop () {
     //Serial.println(F("======================================"));
 
     // false=Manual, true=Auto
-    if (AutoControl) {
+    if ((AutoControl) && (PecMaxTemp > (int) PecTemp - Histereza )) {
       //START ko so plini > 70
       if ((( (int)PecTemp >= PecStartTemp + Histereza) && ( (int)DimTuljavaTemp >= DimTuljavaPoint )) || (( (int)PecTemp > PecStopTemp + Histereza ) && ( (int)DimTuljavaTemp < DimTuljavaPoint ))) {
+        // bojler pod MIN
         if ((BojlerMinTemp > (int)BojlerTemp) && ((int)BojlerTemp + BojlerDiffForHeating <= (int)PecTemp)) {
           RelayBojler1 = true;
           RelayEmergency3 = false;
           //Serial.println(F("BOJLER pump = ON, bojler temp below MIN"));
-          if (DnevnaMinTemp < (int)DHTData.DnevnaTemp) {
+          if (DnevnaMinTemp < (float)DHTData.DnevnaTemp + 0,2) {
             RelayOgrevanje0 = false;
             RelayEmergency3 = false;
             //Serial.println(F("OGREVANJE pump = OFF, dnevna temp over MIN"));
@@ -476,7 +477,8 @@ void loop () {
             //Serial.println(F("OGREVANJE pump = ON, dnevna temp below MIN"));
           }
         }
-        else if (DnevnaMinTemp >= (int)DHTData.DnevnaTemp) {
+        // dnevna pod MIN
+        else if (DnevnaMinTemp >= (float)DHTData.DnevnaTemp - 0,2) {
           RelayOgrevanje0 = true;
           RelayEmergency3 = false;
           //Serial.println(F("OGREVANJE pump = ON, dnevna temp below MIN"));
@@ -490,6 +492,7 @@ void loop () {
           }
         }
         else {
+          // gretje bojlerja
           if ((int)BojlerTemp + BojlerDiffForHeating <= (int)PecTemp && ((int)BojlerTemp <= BojlerMaxTemp)) {
             //PCF8574_Write_Pin(32,1,0);
             RelayBojler1 = true;
@@ -590,7 +593,7 @@ void loop () {
         RelaySolar2 = false; // tudi avtomatika postavi sprem. na ON, jo ponastavim!!!
       }
     } // end if manual/auto
-    if (PecMaxTemp < (int) PecTemp) { // !!! CENTRALNA EMERGENCY OVERHEATING !!!
+    if (PecMaxTemp < (int) PecTemp + Histereza ) { // !!! CENTRALNA EMERGENCY OVERHEATING !!!
       RelayOgrevanje0 = true;
       RelayBojler1 = true;
       RelayEmergency3 = true;
@@ -606,13 +609,13 @@ void loop () {
 
 void LoadDefaults() {
   BojlerDiffForHeating = 5; //Razlika kdaj ogrevamo Bojler
-  PecStartTemp = 57;        //Temp ko pec lahko ogreva ostalo
-  PecStopTemp = 38;         //ugasnemo ogrevanje
+  PecStartTemp = 60;        //Temp ko pec lahko ogreva ostalo
+  PecStopTemp = 40;         //ugasnemo ogrevanje
   PecMaxTemp = 85;          //Pec Max temp
-  BojlerMaxTemp = 51;       //Bojler Max temp
+  BojlerMaxTemp = 50;       //Bojler Max temp
   BojlerMinTemp = 45;       //Min temp bojlerja
   DnevnaMinTemp = 20;       //Min temp v dnevni
-  DimTuljavaPoint = 70;     //Meja kdaj se Pec ohlaja/ogreva
+  DimTuljavaPoint = 91;     //Meja kdaj se Pec ohlaja/ogreva
   SolarMaxTemp = 80;
   Histereza = 2;
   DefaultsLoaded = 16;

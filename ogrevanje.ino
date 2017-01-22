@@ -112,8 +112,8 @@ int BojlerDiffForHeating = 8; //Razlika kdaj ogrevamo Bojler
 int PecStartTemp = 60;        //Temp ko pec lahko ogreva ostalo
 int PecStopTemp = 40;         //ugasnemo ogrevanje
 int PecMaxTemp = 95;          //Pec Max temp
-int BojlerMaxTemp = 50;       //Bojler Max temp
-int BojlerMinTemp = 42;       //Min temp bojlerja
+int BojlerMaxTemp = 55;       //Bojler Max temp
+//int BojlerMinTemp = 42;       //Min temp bojlerja
 int DnevnaMinTemp = 19;       //Min temp v dnevni
 int DimTuljavaPoint = 60;     //Meja kdaj se Pec ohlaja/ogreva
 int SolarMaxTemp = 80;
@@ -137,7 +137,7 @@ int EADD_PecStartTemp = 2;
 int EADD_PecStopTemp = 3;
 int EADD_PecMaxTemp = 4;
 int EADD_BojlerMaxTemp = 5;
-int EADD_BojlerMinTemp = 6;
+//int EADD_BojlerMinTemp = 6;
 int EADD_DnevnaMinTemp = 7;
 int EADD_DimTuljavaPoint = 8;
 int EADD_SolarMaxTemp = 9;
@@ -298,13 +298,13 @@ const char u5m[] PROGMEM = "?u5m";
 const char u5p[] PROGMEM = "?u5p";
 const char u5i[] PROGMEM = "BOJLER MAX:";
 
-const char u6m[] PROGMEM = "?u6m";
-const char u6p[] PROGMEM = "?u6p";
-const char u6i[] PROGMEM = "BOJLER MIN:";
+//const char u6m[] PROGMEM = "?u6m";
+//const char u6p[] PROGMEM = "?u6p";
+//const char u6i[] PROGMEM = "BOJLER MIN:";
 
 const char u7m[] PROGMEM = "?u7m";
 const char u7p[] PROGMEM = "?u7p";
-const char u7i[] PROGMEM = "DNEVNA MIN:";
+const char u7i[] PROGMEM = "DNEVNA MAX:"; // v kodi uporabljam spremenljivoko DnevnaMin!
 
 const char u8m[] PROGMEM = "?u8m";
 const char u8p[] PROGMEM = "?u8p";
@@ -358,13 +358,13 @@ void setup () {
   PecStopTemp = EEPROM.read(EADD_PecStopTemp);
   PecMaxTemp = EEPROM.read(EADD_PecMaxTemp);
   BojlerMaxTemp = EEPROM.read(EADD_BojlerMaxTemp);
-  BojlerMinTemp = EEPROM.read(EADD_BojlerMinTemp);
+//  BojlerMinTemp = EEPROM.read(EADD_BojlerMinTemp);
   DnevnaMinTemp = EEPROM.read(EADD_DnevnaMinTemp);
   DimTuljavaPoint = EEPROM.read(EADD_DimTuljavaPoint);
   SolarMaxTemp = EEPROM.read(EADD_SolarMaxTemp);
   Histereza = EEPROM.read(EADD_Histereza);
-  DefaultsLoaded = EEPROM.read(DefaultsLoaded);
-  if (!DefaultsLoaded == 16) {
+  DefaultsLoaded = EEPROM.read(EADD_DefaultsLoaded);
+  if (DefaultsLoaded != 16) {
     LoadDefaults();
     Serial.println(F("Dfl loaded!"));
   }
@@ -451,130 +451,68 @@ void loop () {
     Serial.println(SolarSpodajTemp);
     Serial.print(F("Bojler: "));
     Serial.println(BojlerTemp);
-    //Serial.print(F("BojlerDiffForHeating: "));
+    //Serial.print(F("Bde: "));
     //Serial.println(BojlerDiffForHeating);
     //Serial.print(F("MinFreeRAM: "));
     //Serial.println(LowestFreeRAM);
     //Serial.println(F("======================================"));
-
     // false=Manual, true=Auto
-    if ((AutoControl) && (PecMaxTemp > (int) PecTemp - Histereza )) {
+    
+    if ((AutoControl) && (PecMaxTemp >= (int) PecTemp - Histereza )) {
+      RelayEmergency3 = false;
       //START ko so plini > 70
       if ((( (int)PecTemp >= PecStartTemp + Histereza) && ( (int)DimTuljavaTemp >= DimTuljavaPoint )) || (( (int)PecTemp > PecStopTemp + Histereza ) && ( (int)DimTuljavaTemp < DimTuljavaPoint ))) {
-        // bojler pod MIN
-        if ((BojlerMinTemp > (int)BojlerTemp) && ((int)BojlerTemp + BojlerDiffForHeating <= (int)PecTemp)) {
-          RelayBojler1 = true;
-          RelayEmergency3 = false;
-          //Serial.println(F("BOJLER pump = ON, bojler temp below MIN"));
-          if (DnevnaMinTemp < (float)DHTData.DnevnaTemp + 0,2) {
-            RelayOgrevanje0 = false;
-            RelayEmergency3 = false;
-            //Serial.println(F("OGREVANJE pump = OFF, dnevna temp over MIN"));
-          }
-          else {
-            RelayOgrevanje0 = true;
-            RelayEmergency3 = false;
-            //Serial.println(F("OGREVANJE pump = ON, dnevna temp below MIN"));
-          }
-        }
-        // dnevna pod MIN
-        else if (DnevnaMinTemp >= (float)DHTData.DnevnaTemp - 0,2) {
-          RelayOgrevanje0 = true;
-          RelayEmergency3 = false;
-          //Serial.println(F("OGREVANJE pump = ON, dnevna temp below MIN"));
-          if ((int)BojlerTemp + BojlerDiffForHeating <= (int)PecTemp) {
+        // bojler
+        if (((int)BojlerTemp + BojlerDiffForHeating <= (int)PecTemp) && ((int)BojlerTemp < BojlerMaxTemp)) {
             RelayBojler1 = true;
-            //Serial.println(F("BOJLER pump = ON"));
-          }
-          else {
-            RelayBojler1 = false;
-            //Serial.println(F("BOJLER pump = OFF"));
-          }
+            Serial.print(F("Bojler=ON"));
         }
-        else {
-          // gretje bojlerja
-          if ((int)BojlerTemp + BojlerDiffForHeating <= (int)PecTemp && ((int)BojlerTemp <= BojlerMaxTemp)) {
-            //PCF8574_Write_Pin(32,1,0);
-            RelayBojler1 = true;
-            RelayEmergency3 = false;
-            //Serial.println(F("BOJLER pump = ON"));
-          }
-          else {
-            //PCF8574_Write_Pin(32,1,1);
+        if (((int)BojlerTemp + BojlerDiffForHeating > (int)PecTemp) || ((int)BojlerTemp >= BojlerMaxTemp)) {
             RelayBojler1 = false;
-            RelayEmergency3 = false;
-            //Serial.println(F("BOJLER pump = OFF"));
-          }
-          //PCF8574_Write_Pin(32,0,0);
+            Serial.print(F("Bojler=OFF"));
+        }        
+        // ogrevanje
+        if ((float)DnevnaMinTemp > DHTData.DnevnaTemp - (Histereza/10)) {
           RelayOgrevanje0 = true;
-          RelayEmergency3 = false;
-          ////Serial.println(F("OGREVANJE pump = ON"));
-          ////Serial.print((freeRam()));
-          ////Serial.println(F(" Free RAM (Bojler/Dnevna over MIN) "));
+          Serial.print(F("Ogrevanje=ON"));
+        }
+        if ((float)DnevnaMinTemp <= DHTData.DnevnaTemp + (Histereza/10)) {
+          RelayOgrevanje0 = false;
+          Serial.print(F("Ogrevanje=OFF"));
         }
       }
-      //else {
       if  ((( (int)PecTemp <= PecStartTemp - Histereza) && ( (int)DimTuljavaTemp >= DimTuljavaPoint )) || (( (int)PecTemp < PecStopTemp - Histereza ) && ( (int)DimTuljavaTemp < DimTuljavaPoint ))) {
-        //if ((int)PecTemp < PecStopTemp) { // izklopim ce je PecTemp < PecStopTemp
-          //PCF8574_Write_Pin(32,0,1); // Pec se ni ogreta izklop crpalke ogrevanja
-          //PCF8574_Write_Pin(32,1,1); // Pec se ni ogreta izklop crpalke bojlerja
-          //PCF8574_Write_Pin(32,3,1);
           RelayOgrevanje0 = false;
           RelayBojler1 = false;
           RelayEmergency3 = false;
-          //Serial.print((freeRam()));
-          //Serial.println(F(" Free RAM (HEATING/BOJLER pump = OFF, Heating temp to LOW) "));
-        //}
       }
       //-----------------------------------------------------------
       // SOLAR
       if (SolarLock) {
         // overheating
         if (((int)SolarZgorajTemp > PecMaxTemp) && ((int)SolarSpodajTemp > PecMaxTemp)){
-          //PCF8574_Write_Pin(32,2,1);
           RelaySolar2 = true;
           RelayBojler1 = true;
-          //Serial.print((freeRam()));
-          //Serial.println(F(" Free RAM (SOLAR pump = OFF, bojler MAX temp reached)"));
-          //Logger(F("SOLAR pump = OFF, bojler MAX temp reached"));
         }
         // heating in progress
-        //else if (((int)SolarZgorajTemp >= (int)BojlerTemp + BojlerDiffForHeating) && ((int)SolarSpodajTemp >= (int)BojlerTemp + BojlerDiffForHeating)) {
         else if (((int)SolarZgorajTemp >= (int)BojlerTemp + BojlerDiffForHeating) || ((int)SolarSpodajTemp >= (int)BojlerTemp + BojlerDiffForHeating)) {
           SolarLock = false;
           SolarPreviousTime = millis();
-          //PCF8574_Write_Pin(32,2,0);
           RelaySolar2 = true;
-          //Serial.print((freeRam()));
-          //Serial.println(F(" Free RAM (SOLAR pump = ON, heating in progress)"));
-          //Logger(F("SOLAR pump = ON, heating in progress"));
         }
         // warming up pipes
         else if (((int)SolarZgorajTemp >= SolarMaxTemp) && ((int)SolarSpodajTemp <= (int)BojlerTemp + BojlerDiffForHeating)) {
           SolarLock = false;
           SolarPreviousTime = millis();
-          //PCF8574_Write_Pin(32,2,0);
           RelaySolar2 = true;
-          //Serial.print((freeRam()));
-          //Serial.println(F(" Free RAM (SOLAR pump = ON, warming up pipes for 20min)"));
-          //Logger(F("SOLAR pump = ON, warming up pipes for 7min"));
         }
         // anti-freeze
         else if (((int)SolarZgorajTemp < 0) || ((int)SolarSpodajTemp < 0)) {
-          //SolarLock = false;
-          //SolarPreviousTime = millis();
-          //PCF8574_Write_Pin(32,2,0);
           RelaySolar2 = true;
-          //Serial.print((freeRam()));
-          //Serial.println(F(" Free RAM (SOLAR pump = ON, anti-freeze)"));
         }
         // solar temp too low
         else {
-          //PCF8574_Write_Pin(32,2,1);
           RelaySolar2 = false;
-          //Serial.print((freeRam()));
-          //Serial.println(F(" Free RAM (SOLAR pump = OFF, solar temp too low)"));
-          //Logger(F("SOLAR pump = OFF, solar temp too low"));
         }
       } // end if SolarLock
       SolarSistemWorking = EEPROM.read(EADD_SolarSistemWorking);
@@ -593,7 +531,7 @@ void loop () {
         RelaySolar2 = false; // tudi avtomatika postavi sprem. na ON, jo ponastavim!!!
       }
     } // end if manual/auto
-    if (PecMaxTemp < (int) PecTemp + Histereza ) { // !!! CENTRALNA EMERGENCY OVERHEATING !!!
+    if (PecMaxTemp <= (int) PecTemp + Histereza ) { // !!! CENTRALNA EMERGENCY OVERHEATING !!!
       RelayOgrevanje0 = true;
       RelayBojler1 = true;
       RelayEmergency3 = true;
@@ -609,13 +547,13 @@ void loop () {
 
 void LoadDefaults() {
   BojlerDiffForHeating = 5; //Razlika kdaj ogrevamo Bojler
-  PecStartTemp = 60;        //Temp ko pec lahko ogreva ostalo
+  PecStartTemp = 65;        //Temp ko pec lahko ogreva ostalo
   PecStopTemp = 40;         //ugasnemo ogrevanje
   PecMaxTemp = 85;          //Pec Max temp
-  BojlerMaxTemp = 50;       //Bojler Max temp
-  BojlerMinTemp = 45;       //Min temp bojlerja
-  DnevnaMinTemp = 20;       //Min temp v dnevni
-  DimTuljavaPoint = 91;     //Meja kdaj se Pec ohlaja/ogreva
+  BojlerMaxTemp = 53;       //Bojler Max temp
+//  BojlerMinTemp = 45;       //Min temp bojlerja
+  DnevnaMinTemp = 23;       //Min temp v dnevni
+  DimTuljavaPoint = 80;     //Meja kdaj se Pec ohlaja/ogreva
   SolarMaxTemp = 80;
   Histereza = 2;
   DefaultsLoaded = 16;
@@ -965,22 +903,22 @@ static void WebServer() {
       }
       RedirectToNastavitve();
     }
-    // +- BojlerMinTemp
-    else if (strstr((char *)Ethernet::buffer + pos, "?u6m") != 0) {
-      if (WebNastavitveLock) {
-        BojlerMinTemp = BojlerMinTemp - 1;
-        WebNastavitveLock = false;
-      }
-      RedirectToNastavitve();
-    }
-    // +- BojlerMinTemp
-    else if (strstr((char *)Ethernet::buffer + pos, "?u6p") != 0) {
-      if (WebNastavitveLock) {
-        BojlerMinTemp = BojlerMinTemp + 1;
-        WebNastavitveLock = false;
-      }
-      RedirectToNastavitve();
-    }
+//    // +- BojlerMinTemp
+//    else if (strstr((char *)Ethernet::buffer + pos, "?u6m") != 0) {
+//      if (WebNastavitveLock) {
+//        BojlerMinTemp = BojlerMinTemp - 1;
+//        WebNastavitveLock = false;
+//      }
+//      RedirectToNastavitve();
+//    }
+//    // +- BojlerMinTemp
+//    else if (strstr((char *)Ethernet::buffer + pos, "?u6p") != 0) {
+//      if (WebNastavitveLock) {
+//        BojlerMinTemp = BojlerMinTemp + 1;
+//        WebNastavitveLock = false;
+//      }
+//      RedirectToNastavitve();
+//    }
     // +- DnevnaMinTemp
     else if (strstr((char *)Ethernet::buffer + pos, "?u7m") != 0) {
       if (WebNastavitveLock) {
@@ -1056,7 +994,7 @@ static void WebServer() {
         EEPROM.write(EADD_PecStopTemp, PecStopTemp);
         EEPROM.write(EADD_PecMaxTemp, PecMaxTemp);
         EEPROM.write(EADD_BojlerMaxTemp, BojlerMaxTemp);
-        EEPROM.write(EADD_BojlerMinTemp, BojlerMinTemp);
+        //EEPROM.write(EADD_BojlerMinTemp, BojlerMinTemp);
         EEPROM.write(EADD_DnevnaMinTemp, DnevnaMinTemp);
         EEPROM.write(EADD_DimTuljavaPoint, DimTuljavaPoint);
         EEPROM.write(EADD_SolarMaxTemp, SolarMaxTemp);
@@ -1195,11 +1133,10 @@ static void SendSettings() {
                  "\"MaxTemp\": \"$D\", "
                  "\"BojlerDiffForHeating\": \"$D\", "
                  "\"DnevnaMinTemp\": \"$D\", "
-                 "\"BojlerMinTemp\": \"$D\", "
                  "\"AutoControl\": \"$D\", "
                  "\"Error\": \"$D\" "
                  "}"
-               ), (unsigned long) millis() / 1000, LowestFreeRAM, PCF8574CurrentState, PecStartTemp, PecMaxTemp, BojlerDiffForHeating, DnevnaMinTemp, BojlerMinTemp, AutoControl, ErrorCodes);
+               ), (unsigned long) millis() / 1000, LowestFreeRAM, PCF8574CurrentState, PecStartTemp, PecMaxTemp, BojlerDiffForHeating, DnevnaMinTemp, AutoControl, ErrorCodes);
   ether.httpServerReply(bfill.position());
 }
 
@@ -1474,7 +1411,7 @@ static void Nastavitve() {
   Nastavitve_Tabela_Vrstica(u3i,sizeof u3i,u3p,sizeof u3p,u3m,sizeof u3m,PecMaxTemp, deg, sizeof deg);
   Nastavitve_Tabela_Vrstica(u4i,sizeof u4i,u4p,sizeof u4p,u4m,sizeof u4m,BojlerDiffForHeating, deg, sizeof deg);
   Nastavitve_Tabela_Vrstica(u5i,sizeof u5i,u5p,sizeof u5p,u5m,sizeof u5m,BojlerMaxTemp, deg, sizeof deg);
-  Nastavitve_Tabela_Vrstica(u6i,sizeof u6i,u6p,sizeof u6p,u6m,sizeof u6m,BojlerMinTemp, deg, sizeof deg);
+//  Nastavitve_Tabela_Vrstica(u6i,sizeof u6i,u6p,sizeof u6p,u6m,sizeof u6m,BojlerMinTemp, deg, sizeof deg);
   Nastavitve_Tabela_Vrstica(u7i,sizeof u7i,u7p,sizeof u7p,u7m,sizeof u7m,DnevnaMinTemp, deg, sizeof deg);
   Nastavitve_Tabela_Vrstica(u8i,sizeof u8i,u8p,sizeof u8p,u8m,sizeof u8m,DimTuljavaPoint, deg, sizeof deg);
   Nastavitve_Tabela_Vrstica(u9i,sizeof u9i,u9p,sizeof u9p,u9m,sizeof u9m,SolarMaxTemp, deg, sizeof deg);

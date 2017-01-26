@@ -458,7 +458,7 @@ void loop () {
     //Serial.println(F("======================================"));
     // false=Manual, true=Auto
     
-    if ((AutoControl) && (PecMaxTemp >= (int) PecTemp - Histereza )) {
+    if ((AutoControl) && (PecMaxTemp - Histereza >= (int) PecTemp)) {
       RelayEmergency3 = false;
       //START ko so plini > 70
       if ((( (int)PecTemp >= PecStartTemp + Histereza) && ( (int)DimTuljavaTemp >= DimTuljavaPoint )) || (( (int)PecTemp > PecStopTemp + Histereza ) && ( (int)DimTuljavaTemp < DimTuljavaPoint ))) {
@@ -467,21 +467,21 @@ void loop () {
             RelayBojler1 = true;
             Serial.print(F("Bojler=ON"));
         }
-        if (((int)BojlerTemp + BojlerDiffForHeating > (int)PecTemp) || ((int)BojlerTemp >= BojlerMaxTemp)) {
+        if ((int)BojlerTemp >= BojlerMaxTemp) {
             RelayBojler1 = false;
             Serial.print(F("Bojler=OFF"));
         }        
         // ogrevanje
-        if ((float)DnevnaMinTemp > DHTData.DnevnaTemp - (Histereza/10)) {
+        if ((float)DnevnaMinTemp > DHTData.DnevnaTemp - 0.2) {
           RelayOgrevanje0 = true;
           Serial.print(F("Ogrevanje=ON"));
         }
-        if ((float)DnevnaMinTemp <= DHTData.DnevnaTemp + (Histereza/10)) {
+        if ((float)DnevnaMinTemp <= DHTData.DnevnaTemp + 0.2) {
           RelayOgrevanje0 = false;
           Serial.print(F("Ogrevanje=OFF"));
         }
       }
-      if  ((( (int)PecTemp <= PecStartTemp - Histereza) && ( (int)DimTuljavaTemp >= DimTuljavaPoint )) || (( (int)PecTemp < PecStopTemp - Histereza ) && ( (int)DimTuljavaTemp < DimTuljavaPoint ))) {
+      if  ((( (int)PecTemp <= PecStartTemp - Histereza) && ((int)DimTuljavaTemp >= DimTuljavaPoint )) || (( (int)PecTemp < PecStopTemp - Histereza ) && ( (int)DimTuljavaTemp < DimTuljavaPoint ))) {
           RelayOgrevanje0 = false;
           RelayBojler1 = false;
           RelayEmergency3 = false;
@@ -531,7 +531,7 @@ void loop () {
         RelaySolar2 = false; // tudi avtomatika postavi sprem. na ON, jo ponastavim!!!
       }
     } // end if manual/auto
-    if (PecMaxTemp <= (int) PecTemp + Histereza ) { // !!! CENTRALNA EMERGENCY OVERHEATING !!!
+    if (PecMaxTemp + Histereza <= (int) PecTemp ) { // !!! CENTRALNA EMERGENCY OVERHEATING !!!
       RelayOgrevanje0 = true;
       RelayBojler1 = true;
       RelayEmergency3 = true;
